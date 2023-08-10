@@ -39,6 +39,47 @@ def post_daily_message(
     )
 
 
+def post_calendar_subscribe_status_message(
+        token,
+        status,
+        channel: str = slack_calendar_channel
+):
+    """ 슬랙채널에 캘린더 구독상태 게시하기 """
+
+    client = WebClient(token=token)
+    header_payload = []
+    attachments = []
+
+    header_payload.append(
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": '{}'.format("구글 캘린더 구독 상태 알림")
+            }
+        }
+    )
+    attachments.append({
+        'color': '#5D3731',
+        'blocks': [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": '*상태:{}*'.format(status)
+                }
+            }
+        ]
+    })
+
+    client.chat_postMessage(
+        channel=channel,
+        text="구글 캘린더 구독 상태 알림",
+        blocks=header_payload,
+        attachments=attachments
+    )
+
+
 def post_job_message(
         token,
         text,

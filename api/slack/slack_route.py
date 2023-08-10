@@ -367,58 +367,48 @@ def google_calendar_watch():
 
 
 def parse_item_from_event(event, is_daily_mode):
-    try:
-        item = {
-            "summary": event.get("summary", None),
-            "location": event.get("location", None),
-            "meeting_time": None,
-            "link": event.get("htmlLink", None),
-        }
-        # print(event)
-        # 하루 종일 체크
-        if event.get("start", None).get("date"):
-            start = event.get("start", None).get("date")
-            end = event.get("end", None).get("date")
-            item["meeting_time"] = "종일 {}".format(start)
+    item = {
+        "summary": event.get("summary", None),
+        "location": event.get("location", None),
+        "meeting_time": None,
+        "link": event.get("htmlLink", None),
+    }
+    # print(event)
+    # 하루 종일 체크
+    if event.get("start", None).get("date"):
+        start = event.get("start", None).get("date")
+        end = event.get("end", None).get("date")
+        item["meeting_time"] = "종일 {}".format(start)
 
-        # 하루 일정 시간 체크
-        elif event.get("start", None).get("dateTime"):
-            start_datetime = event.get("start", None).get("dateTime")
-            end_datetime = event.get("end", None).get("dateTime")
-            start_date = str(start_datetime).split("T")[0]
-            end_date = str(end_datetime).split("T")[0]
-            start = str(event.get("start", None).get("dateTime")).split("T")[1].split("+")[0]
-            end = event.get("end", None).get("dateTime").split("T")[1].split("+")[0]
+    # 하루 일정 시간 체크
+    elif event.get("start", None).get("dateTime"):
+        start_datetime = event.get("start", None).get("dateTime")
+        end_datetime = event.get("end", None).get("dateTime")
+        start_date = str(start_datetime).split("T")[0]
+        end_date = str(end_datetime).split("T")[0]
+        start = str(event.get("start", None).get("dateTime")).split("T")[1].split("+")[0]
+        end = event.get("end", None).get("dateTime").split("T")[1].split("+")[0]
 
-            start_time = start.split(":")
-            end_time = end.split(":")
+        start_time = start.split(":")
+        end_time = end.split(":")
 
-            date_format = "%Y-%m-%dT%H:%M:%S%z"
-            start_date_obj = datetime.datetime.strptime(start_datetime, date_format)
-            end_date_obj = datetime.datetime.strptime(end_datetime, date_format)
+        date_format = "%Y-%m-%dT%H:%M:%S%z"
+        start_date_obj = datetime.datetime.strptime(start_datetime, date_format)
+        end_date_obj = datetime.datetime.strptime(end_datetime, date_format)
 
-            korean_locale = locale.setlocale(locale.LC_TIME, 'ko_KR.utf8')
-            start_yoil = start_date_obj.strftime("%a").strip()
-            end_yoil = end_date_obj.strftime("%a").strip()
+        korean_locale = locale.setlocale(locale.LC_TIME, 'ko_KR.utf8')
+        start_yoil = start_date_obj.strftime("%a").strip()
+        end_yoil = end_date_obj.strftime("%a").strip()
 
-            if is_daily_mode:
-                item["meeting_time"] = "{}시 {}분".format(start_time[0], start_time[1])
+        if is_daily_mode:
+            item["meeting_time"] = "{}시 {}분".format(start_time[0], start_time[1])
+            item["meeting_time"] += " ~ {}시 {}분".format(end_time[0], end_time[1])
+        else:
+            item["meeting_time"] = "{}({}) {}시 {}분".format(start_date, start_yoil, start_time[0], start_time[1])
+
+            if start_date == end_date:
                 item["meeting_time"] += " ~ {}시 {}분".format(end_time[0], end_time[1])
             else:
-                item["meeting_time"] = "{}({}) {}시 {}분".format(start_date, start_yoil, start_time[0], start_time[1])
+                item["meeting_time"] += " ~ {}({}) {}시 {}분".format(end_date, end_yoil, end_time[0], end_time[1])
 
-                if start_date == end_date:
-                    item["meeting_time"] += " ~ {}시 {}분".format(end_time[0], end_time[1])
-                else:
-                    item["meeting_time"] += " ~ {}({}) {}시 {}분".format(end_date, end_yoil, end_time[0], end_time[1])
-
-        return item
-    except Exception as e:
-        post_error_message(
-            current_app.config["slack_token"], "캘린더 Event Watch Parse Error",
-            str({
-                "e": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc()
-            })
-        )
+    return item
