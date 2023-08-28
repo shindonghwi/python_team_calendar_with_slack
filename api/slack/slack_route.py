@@ -10,7 +10,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from .utils import google_auth
 import db
-from .bot import post_daily_message, post_job_message, post_error_message
+from .bot import post_daily_message, post_job_message, post_error_message, post_calendar_subscribe_status_message
 from . import event_app_home_not_connected, event_app_home_connected
 import traceback
 
@@ -106,6 +106,8 @@ def authorize():
                 }
             }
 
+            renew_subscribe(access_token=user_info["access_token"])
+
             event_app_home_connected(
                 slack_token=current_app.config["slack_token"],
                 user_id=user_id
@@ -149,6 +151,10 @@ def oauth2callback():
             next_sync_token=next_sync_token
         )
 
+        res = requests.get('https://google-calendar-slack.orotcode.com/slack/authorize?user_id=U03MXBND80Y')
+        access_token = res.json()['data']['access_token']
+        renew_subscribe(access_token=access_token)
+
         event_app_home_connected(
             slack_token=current_app.config["slack_token"],
             user_id=user_id
@@ -169,6 +175,23 @@ def oauth2callback():
             })
         )
 
+# 구독갱신하기
+def renew_subscribe(access_token: str):
+    slack_token = "xoxb-3745296232272-4845927270291-uE78X8df2sNz6cC2MSfMsVlH"
+    headers = {
+        "Authorization": "Bearer {}".format(access_token),
+        'Content-Type': 'application/json'
+    }
+    data = {
+        'id': 'U03MXBND80Y',
+        'type': 'web_hook',
+        'address': 'https://google-calendar-slack.orotcode.com/slack/watch/callback'
+    }
+    res_subscribe = requests.post(
+        'https://www.googleapis.com/calendar/v3/calendars/dev@orotcode.com/events/watch',
+        json=data,
+        headers=headers
+    )
 
 @bp.route('/logout')
 def logout():
@@ -367,22 +390,27 @@ def google_calendar_watch():
 
 
 def parse_item_from_event(event, is_daily_mode):
-    try:
-        item = {
-            "summary": event.get("summary", None),
-            "location": event.get("location", None),
-            "meeting_time": None,
-            "link": event.get("htmlLink", None),
-        }
-        # print(event)
-        # 하루 종일 체크
-        if event.get("start", None).get("date"):
+
+    print(event)
+
+    item = {
+        "summary": event.get("summary", None),
+        "location": event.get("location", None),
+        "meeting_time": None,
+        "link": event.get("htmlLink", None),
+    }
+
+    if event.get("status") == "cancelled":
+       print("취소 상태에서는 정보가 없음.")
+    else:
+        start = event.get("start", None)
+        if start and start.get("date"):
             start = event.get("start", None).get("date")
             end = event.get("end", None).get("date")
             item["meeting_time"] = "종일 {}".format(start)
 
         # 하루 일정 시간 체크
-        elif event.get("start", None).get("dateTime"):
+        elif start and start.get("dateTime"):
             start_datetime = event.get("start", None).get("dateTime")
             end_datetime = event.get("end", None).get("dateTime")
             start_date = str(start_datetime).split("T")[0]
@@ -412,13 +440,4 @@ def parse_item_from_event(event, is_daily_mode):
                 else:
                     item["meeting_time"] += " ~ {}({}) {}시 {}분".format(end_date, end_yoil, end_time[0], end_time[1])
 
-        return item
-    except Exception as e:
-        post_error_message(
-            current_app.config["slack_token"], "캘린더 Event Watch Parse Error",
-            str({
-                "e": str(e),
-                "args": e.args,
-                "traceback": traceback.format_exc()
-            })
-        )
+    return item
